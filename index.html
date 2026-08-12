@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise EMS - Pro Attendance & Payroll Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .cord {
+            width: 4px; height: 120px;
+            background: linear-gradient(to bottom, #4b5563, #eab308);
+            margin: 0 auto; position: relative; cursor: pointer; transition: height 0.2s ease;
+        }
+        .cord::after {
+            content: ''; position: absolute; bottom: -15px; left: -8px; width: 20px; height: 20px;
+            background: #eab308; border-radius: 50%; box-shadow: 0 4px 15px rgba(234, 179, 8, 0.6);
+        }
+        .cord:active { height: 150px; }
+        @media print {
+            body * { visibility: hidden; }
+            #salarySlipModal, #salarySlipModal * { visibility: visible; }
+            #salarySlipModal { position: absolute; left: 0; top: 0; width: 100%; background: white !important; color: black !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-amber-500 selection:text-slate-950">
+
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div class="text-center mb-6">
+            <h1 class="text-xs uppercase tracking-widest text-slate-400 mb-6 font-semibold">Pull the cord to power on Enterprise Portal</h1>
+            <div class="flex flex-col items-center cursor-pointer" onclick="revealLogin()">
+                <div class="w-24 h-16 bg-slate-900 border border-slate-800 rounded-t-full mx-auto shadow-2xl"></div>
+                <div class="cord" title="Click to Pull"></div>
+            </div>
+        </div>
+
+        <div id="loginBox" class="bg-slate-900/90 backdrop-blur-xl p-8 rounded-3xl border border-slate-800 shadow-2xl w-full max-w-sm hidden">
+            <div class="text-center mb-6">
+                <div class="inline-flex p-3 bg-amber-500/10 rounded-2xl text-amber-400 mb-2 border border-amber-500/20">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <h2 class="text-lg font-bold text-white">Secure Portal Login</h2>
+            </div>
+            
+            <div class="flex bg-slate-950 p-1 rounded-xl mb-4 border border-slate-800">
+                <button type="button" onclick="setLoginRole('admin')" id="roleAdminBtn" class="flex-1 py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 transition">Admin</button>
+                <button type="button" onclick="setLoginRole('employee')" id="roleEmpBtn" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-400 transition">Employee</button>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div id="empIdFieldContainer" class="hidden">
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Employee ID</label>
+                    <input type="text" id="loginEmpId" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 text-sm" placeholder="e.g. EMP-1234">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Password</label>
+                    <input type="password" id="loginPassword" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 text-sm" placeholder="Enter password">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition text-sm shadow-lg shadow-amber-500/20">Authenticate</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP DASHBOARD -->
+    <div id="mainApp" class="hidden">
+        <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 px-8 py-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-40 gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded-xl text-sm tracking-wider shadow-lg shadow-amber-500/20">EMS</div>
+                <div>
+                    <h1 id="headerTitle" class="text-sm font-bold tracking-wide">Sufyan Shaikh: Payroll & Attendance Suite</h1>
+                    <p id="headerSub" class="text-xs text-slate-400">Grace Timing, Auto-Payroll & Security Alerts</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-6 bg-slate-950/60 px-5 py-2 rounded-2xl border border-slate-800/80 shadow-inner">
+                <div class="text-right">
+                    <div id="liveTime" class="text-sm font-mono font-bold text-amber-400">00:00:00</div>
+                    <div id="liveDate" class="text-[10px] text-slate-400 font-medium">Loading Date...</div>
+                </div>
+                <div id="quickPunchBox" class="flex items-center space-x-2 border-l border-slate-800 pl-6">
+                    <button onclick="quickPunch('in')" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-xs font-semibold transition">Punch In</button>
+                    <button onclick="quickPunch('out')" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-xl text-xs font-semibold transition">Punch Out</button>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <button id="resetDataBtn" onclick="resetAppStorage()" class="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3.5 py-2 rounded-xl transition font-medium">Reset Data</button>
+                <button onclick="location.reload()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2.5 rounded-xl border border-slate-700 transition font-medium">Logout</button>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto p-8 space-y-8">
+            <!-- Navigation Tabs -->
+            <div id="navTabsContainer" class="flex flex-wrap gap-2 bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800/80 w-fit">
+                <button onclick="switchTab('employees')" id="tab-employees" class="px-5 py-2.5 rounded-xl font-semibold transition text-xs bg-amber-500 text-slate-950 shadow-lg">Employees & Shifts</button>
+                <button onclick="switchTab('attendance')" id="tab-attendance" class="px-5 py-2.5 rounded-xl font-semibold transition text-xs text-slate-400 hover:text-white">Daily Attendance</button>
+                <button onclick="switchTab('leaves')" id="tab-leaves" class="px-5 py-2.5 rounded-xl font-semibold transition text-xs text-slate-400 hover:text-white">Leave Management</button>
+                <button onclick="switchTab('reports')" id="tab-reports" class="px-5 py-2.5 rounded-xl font-semibold transition text-xs text-slate-400 hover:text-white">Monthly Ledgers & Payroll</button>
+            </div>
+
+            <!-- TAB 1: EMPLOYEES -->
+            <section id="section-employees" class="space-y-6">
+                <div class="bg-slate-900/60 backdrop-blur-xl p-6 rounded-3xl border border-slate-800/80 shadow-2xl">
+                    <h3 class="text-base font-bold mb-4 text-amber-400">Register Employee & Custom Credentials</h3>
+                    <form onsubmit="addEmployee(event)" class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Full Name</label>
+                            <input type="text" id="empName" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500" placeholder="e.g. Ali Khan">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Password</label>
+                            <input type="text" id="empPass" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" placeholder="Secret pass">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Shift Start</label>
+                            <input type="time" id="shiftStart" value="09:00" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Shift End</label>
+                            <input type="time" id="shiftEnd" value="18:00" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Base Salary (PKR)</label>
+                            <input type="number" id="empSalary" value="45000" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                        </div>
+                        <div class="md:col-span-6 flex justify-end">
+                            <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-xl transition text-sm shadow-lg">Save Employee</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-slate-800/80 overflow-hidden shadow-2xl">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800/80">
+                                <th class="p-4 pl-6">ID & Password</th>
+                                <th class="p-4">Name</th>
+                                <th class="p-4">Shift Timings</th>
+                                <th class="p-4">Annual Leaves</th>
+                                <th class="p-4">Monthly Salary</th>
+                                <th class="p-4 pr-6 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeTableBody" class="divide-y divide-slate-800/50 text-sm"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- TAB 2: DAILY ATTENDANCE -->
+            <section id="section-attendance" class="space-y-6 hidden">
+                <div class="bg-slate-900/60 backdrop-blur-xl p-8 rounded-3xl border border-slate-800/80 shadow-2xl max-w-xl mx-auto">
+                    <h3 class="text-base font-bold mb-2 text-amber-400">Log Daily Attendance</h3>
+                    <p class="text-xs text-slate-400 mb-6">First 15m late/early is normal. 16m+ late counts as late; 16m+ early counts as short leave; +1m past shift end counts as overtime.</p>
+                    <form onsubmit="markAttendance(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Select Employee</label>
+                            <select id="attEmpId" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white text-sm"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Date</label>
+                            <input type="date" id="attDate" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Time In</label>
+                                <input type="time" id="timeIn" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Time Out</label>
+                                <input type="time" id="timeOut" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white text-sm">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3 rounded-xl transition text-sm shadow-lg mt-2">Process & Save Record</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- TAB 3: LEAVE MANAGEMENT -->
+            <section id="section-leaves" class="space-y-6 hidden">
+                <div class="bg-slate-900/60 backdrop-blur-xl p-6 rounded-3xl border border-slate-800/80 shadow-2xl">
+                    <h3 class="text-base font-bold mb-4 text-amber-400">Apply Employee Leave</h3>
+                    <form onsubmit="applyLeave(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Select Employee</label>
+                            <select id="leaveEmpId" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Leave Date</label>
+                            <input type="date" id="leaveDate" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1.5 font-medium">Leave Type</label>
+                            <select id="leaveType" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm">
+                                <option value="Paid Annual Leave">Paid Annual Leave</option>
+                                <option value="Casual Leave">Casual Leave</option>
+                                <option value="Sick Leave">Sick Leave</option>
+                                <option value="Unpaid Leave">Unpaid Leave</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2.5 rounded-xl transition text-sm shadow-lg">Grant & Deduct Leave</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-slate-800/80 overflow-hidden shadow-2xl">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800/80">
+                                <th class="p-4 pl-6">Date</th>
+                                <th class="p-4">Employee Name</th>
+                                <th class="p-4">Leave Type</th>
+                                <th class="p-4 pr-6 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaveTableBody" class="divide-y divide-slate-800/50 text-sm"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- TAB 4: MONTHLY LEDGERS & PAYROLL -->
+            <section id="section-reports" class="space-y-6 hidden">
+                <div class="bg-slate-900/60 backdrop-blur-xl p-6 rounded-3xl border border-slate-800/80 shadow-2xl space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800/80 pb-4">
+                        <div>
+                            <h3 class="text-base font-bold text-amber-400">Monthly Attendance & Salary Sheets</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">View ledger, edit/delete logs, or generate professional salary slips (Strictly restricted to Current & Previous Month).</p>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <label class="text-xs text-slate-400 font-medium uppercase tracking-wider">Month:</label>
+                            <input type="month" id="reportMonth" onchange="renderReports()" class="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white text-xs focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="employeeLedgerCards"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- INDIVIDUAL EMPLOYEE LEDGER MODAL -->
+    <div id="ledgerModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <div>
+                    <h3 id="modalEmpName" class="text-base font-bold text-amber-400">Employee Ledger</h3>
+                    <p id="modalEmpMeta" class="text-xs text-slate-400 font-mono">ID & Shift Details</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="openSalarySlip()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-amber-500/20">Generate Pro Salary Slip</button>
+                    <button onclick="closeLedgerModal()" class="text-slate-400 hover:text-white bg-slate-800/50 hover:bg-slate-800 p-2 rounded-xl text-xs">✕ Close</button>
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-6 flex-1">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+                        <div class="text-[10px] text-slate-400 uppercase">Present / Leaves</div>
+                        <div id="mPresent" class="text-sm font-bold text-emerald-400 mt-1 font-mono">0 / 0</div>
+                    </div>
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+                        <div class="text-[10px] text-slate-400 uppercase">Total Late Mins</div>
+                        <div id="mLate" class="text-lg font-bold text-rose-400 mt-1 font-mono">0m</div>
+                    </div>
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+                        <div class="text-[10px] text-slate-400 uppercase">Short Leave / OT</div>
+                        <div id="mShortOT" class="text-xs font-bold text-amber-400 mt-1 font-mono">0m / 0m</div>
+                    </div>
+                    <div class="bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+                        <div class="text-[10px] text-slate-400 uppercase">Est. Net Salary</div>
+                        <div id="mSalary" class="text-lg font-bold text-white mt-1 font-mono">Rs. 0</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Attendance & Leave Log History</h4>
+                    <div class="overflow-x-auto rounded-2xl border border-slate-800/80">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
+                                    <th class="p-3 pl-4">Date</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3">In &rarr; Out</th>
+                                    <th class="p-3">Late (&gt;15m)</th>
+                                    <th class="p-3">Short Lv (&gt;15m)</th>
+                                    <th class="p-3">Overtime</th>
+                                    <th id="modalActionHeader" class="p-3 pr-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalLogRows" class="divide-y divide-slate-800/50"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRO SALARY SLIP MODAL -->
+    <div id="salarySlipModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white text-slate-950 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative space-y-6">
+            <div class="flex justify-between items-center border-b pb-4">
+                <div>
+                    <h2 class="text-xl font-black tracking-tight text-slate-900">OFFICIAL SALARY STATEMENT</h2>
+                    <p id="slipMonthYear" class="text-xs font-semibold text-slate-500 uppercase">Payroll Slip</p>
+                </div>
+                <div class="text-right">
+                    <span class="bg-slate-900 text-amber-400 px-3 py-1 rounded-xl text-xs font-bold">Sufyan Shaikh EMS</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Employee Name</p>
+                    <p id="slipEmpName" class="font-bold text-slate-900 text-base">-</p>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Employee ID</p>
+                    <p id="slipEmpId" class="font-mono font-semibold text-slate-900">-</p>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Shift Timings</p>
+                    <p id="slipShift" class="font-mono text-slate-700">-</p>
+                </div>
+                <div>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Base Salary</p>
+                    <p id="slipBaseSalary" class="font-mono font-semibold text-slate-900">-</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-sm">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Monthly Attendance Summary</h4>
+                <div class="grid grid-cols-4 gap-2 text-center">
+                    <div class="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl">
+                        <span class="block text-[9px] text-emerald-600 uppercase font-bold">Present</span>
+                        <span id="slipPresent" class="font-mono font-bold text-emerald-900 text-sm">0</span>
+                    </div>
+                    <div class="bg-cyan-50 border border-cyan-200 p-2.5 rounded-xl">
+                        <span class="block text-[9px] text-cyan-600 uppercase font-bold">Leaves</span>
+                        <span id="slipLeaves" class="font-mono font-bold text-cyan-900 text-sm">0</span>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
+                        <span class="block text-[9px] text-rose-600 uppercase font-bold">Late Mins</span>
+                        <span id="slipLate" class="font-mono font-bold text-rose-900 text-sm">0m</span>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+                        <span class="block text-[9px] text-amber-600 uppercase font-bold">Short Leave</span>
+                        <span id="slipShortLeave" class="font-mono font-bold text-amber-900 text-sm">0m</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-2 border-t pt-4 text-sm">
+                <div class="flex justify-between text-slate-600">
+                    <span>Overtime Earnings (+)</span>
+                    <span id="slipOvertimeAmt" class="font-mono font-semibold text-emerald-600">Rs. 0</span>
+                </div>
+                <div class="flex justify-between text-slate-600">
+                    <span>Late & Short Leave Deductions (-)</span>
+                    <span id="slipDeductionAmt" class="font-mono font-semibold text-rose-600">Rs. 0</span>
+                </div>
+                <div class="flex justify-between text-base font-bold border-t pt-3 text-slate-950">
+                    <span>Final Net Payable Salary</span>
+                    <span id="slipNetSalary" class="font-mono text-lg text-indigo-600">Rs. 0</span>
+                </div>
+            </div>
+
+            <div class="pt-6 border-t flex justify-between items-end text-xs text-slate-500">
+                <div>
+                    <p class="font-semibold text-slate-700">Authorized Signature</p>
+                    <div class="h-10 border-b border-slate-300 w-36 mt-2"></div>
+                </div>
+                <div class="text-right">
+                    <p>System Generated Slip</p>
+                    <p class="font-mono text-[10px]">Sufyan Shaikh : Enterprise Portal</p>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-2 no-print">
+                <button onclick="window.print()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition">Print / Save PDF</button>
+                <button onclick="closeSalarySlip()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-5 py-2.5 rounded-xl text-xs transition">Close Slip</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let employees = [];
+        let attendanceLogs = [];
+        let leaveLogs = [];
+        
+        let currentUserRole = 'admin'; // 'admin' or 'employee'
+        let currentLoggedInEmpId = null;
+        let activeModalEmpId = null;
+
+        const ADMIN_PHONE = "923451294169";
+        const ADMIN_EMAIL = "sufyanshaikh623@gmail.com";
+
+        // Initialize & purge any data older than previous month
+        function cleanOldData() {
+            const now = new Date();
+            const currYear = now.getFullYear();
+            const currMonth = now.getMonth(); // 0-11
+            
+            // Calculate previous month string YYYY-MM
+            let pYear = currYear;
+            let pMonth = currMonth - 1;
+            if(pMonth < 0) { pMonth = 11; pYear--; }
+            
+            const currMonthStr = currYear + '-' + String(currMonth + 1).padStart(2, '0');
+            const prevMonthStr = pYear + '-' + String(pMonth + 1).padStart(2, '0');
+
+            try {
+                if(localStorage.getItem('ems_pro_emp')) employees = JSON.parse(localStorage.getItem('ems_pro_emp'));
+                
+                if(localStorage.getItem('ems_pro_logs')) {
+                    let rawLogs = JSON.parse(localStorage.getItem('ems_pro_logs'));
+                    attendanceLogs = rawLogs.filter(function(l) {
+                        return l.date.startsWith(currMonthStr) || l.date.startsWith(prevMonthStr);
+                    });
+                }
+                
+                if(localStorage.getItem('ems_pro_leaves')) {
+                    let rawLeaves = JSON.parse(localStorage.getItem('ems_pro_leaves'));
+                    leaveLogs = rawLeaves.filter(function(lv) {
+                        return lv.date.startsWith(currMonthStr) || lv.date.startsWith(prevMonthStr);
+                    });
+                }
+                
+                saveToStorage();
+            } catch(e) {}
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('ems_pro_emp', JSON.stringify(employees));
+            localStorage.setItem('ems_pro_logs', JSON.stringify(attendanceLogs));
+            localStorage.setItem('ems_pro_leaves', JSON.stringify(leaveLogs));
+        }
+
+        cleanOldData();
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('liveTime').innerText = now.toLocaleTimeString();
+            document.getElementById('liveDate').innerText = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        }, 1000);
+
+        function revealLogin() {
+            document.getElementById('loginBox').classList.remove('hidden');
+        }
+
+        function setLoginRole(role) {
+            currentUserRole = role;
+            if(role === 'admin') {
+                document.getElementById('roleAdminBtn').className = "flex-1 py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 transition";
+                document.getElementById('roleEmpBtn').className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-400 transition";
+                document.getElementById('empIdFieldContainer').classList.add('hidden');
+                document.getElementById('loginPassword').placeholder = "admin123";
+            } else {
+                document.getElementById('roleEmpBtn').className = "flex-1 py-2 text-xs font-bold rounded-lg bg-amber-500 text-slate-950 transition";
+                document.getElementById('roleAdminBtn').className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-400 transition";
+                document.getElementById('empIdFieldContainer').classList.remove('hidden');
+                document.getElementById('loginPassword').placeholder = "Enter your password";
+            }
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const pass = document.getElementById('loginPassword').value;
+
+            if(currentUserRole === 'admin') {
+                if(pass === "admin123") {
+                    startMainApp('admin', null);
+                } else {
+                    alert('Invalid Admin Password! Use admin123');
+                }
+            } else {
+                const empIdInput = document.getElementById('loginEmpId').value.trim().toUpperCase();
+                const foundEmp = employees.find(function(emp) { return emp.id === empIdInput && emp.password === pass; });
+                if(foundEmp) {
+                    startMainApp('employee', foundEmp.id);
+                } else {
+                    alert('Invalid Employee ID or Password!');
+                }
+            }
+        }
+
+        function startMainApp(role, empId) {
+            currentUserRole = role;
+            currentLoggedInEmpId = empId;
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainApp').classList.remove('hidden');
+
+            const today = new Date().toISOString().slice(0, 10);
+            document.getElementById('attDate').value = today;
+            document.getElementById('leaveDate').value = today;
+            document.getElementById('reportMonth').value = new Date().toISOString().slice(0, 7);
+
+            if(role === 'employee') {
+                // Restrict UI layout for employee view
+                document.getElementById('navTabsContainer').style.display = 'none';
+                document.getElementById('quickPunchBox').style.display = 'none';
+                document.getElementById('resetDataBtn').style.display = 'none';
+                document.getElementById('headerTitle').innerText = 'Employee Portal - Self Service';
+                document.getElementById('headerSub').innerText = 'Viewing Personal Attendance, Leaves & Salary Statements';
+                
+                // Open modal directly for this employee
+                openLedgerModal(empId);
+                // Hide modal close button if they shouldn't escape, or make it just show their profile view
+            } else {
+                initApp();
+            }
+        }
+
+        function switchTab(tabName) {
+            ['employees', 'attendance', 'leaves', 'reports'].forEach(t => {
+                document.getElementById('section-' + t).classList.add('hidden');
+                document.getElementById('tab-' + t).className = "px-5 py-2.5 rounded-xl font-semibold transition text-xs text-slate-400 hover:text-white";
+            });
+            document.getElementById('section-' + tabName).classList.remove('hidden');
+            document.getElementById('tab-' + tabName).className = "px-5 py-2.5 rounded-xl font-semibold transition text-xs bg-amber-500 text-slate-950 shadow-lg";
+            if(tabName === 'reports') renderReports();
+        }
+
+        function initApp() {
+            renderEmployees();
+            renderDropdowns();
+            renderLeaves();
+            renderReports();
+        }
+
+        function triggerNotifications(actionType, details) {
+            const msg = "⚠️ EMS Alert: Attendance record was " + actionType + ".\nDetails: " + details + "\nAction by Admin Sufyan.";
+            const waUrl = "https://wa.me/" + ADMIN_PHONE + "?text=" + encodeURIComponent(msg);
+            const mailSubject = "EMS Portal Alert: Record " + actionType;
+            const mailBody = "Hello Sufyan,\n\nAn attendance record has been " + actionType + ".\n\nDetails:\n" + details + "\n\nRegards,\nEnterprise EMS";
+            const mailtoUrl = "mailto:" + ADMIN_EMAIL + "?subject=" + encodeURIComponent(mailSubject) + "&body=" + encodeURIComponent(mailBody);
+
+            window.open(waUrl, '_blank');
+            window.location.href = mailtoUrl;
+        }
+
+        function quickPunch(type) {
+            if(employees.length === 0) return alert('Please register an employee first.');
+            const now = new Date();
+            const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            if(type === 'in') {
+                document.getElementById('timeIn').value = timeStr;
+                alert('Time In set to current system time: ' + timeStr);
+            } else {
+                document.getElementById('timeOut').value = timeStr;
+                alert('Time Out set to current system time: ' + timeStr);
+            }
+            switchTab('attendance');
+            document.getElementById('attEmpId').value = employees[0].id;
+            document.getElementById('attDate').value = now.toISOString().slice(0, 10);
+        }
+
+        function addEmployee(e) {
+            e.preventDefault();
+            const emp = {
+                id: 'EMP-' + Math.floor(1000 + Math.random() * 9000),
+                name: document.getElementById('empName').value.trim(),
+                password: document.getElementById('empPass').value.trim(),
+                shiftStart: document.getElementById('shiftStart').value,
+                shiftEnd: document.getElementById('shiftEnd').value,
+                salary: Number(document.getElementById('empSalary').value) || 40000,
+                annualLeaves: 15 // Default annual leave balance
+            };
+            employees.push(emp);
+            saveToStorage();
+            document.getElementById('empName').value = '';
+            document.getElementById('empPass').value = '';
+            initApp();
+            alert('Employee registered successfully with ID: ' + emp.id);
+        }
+
+        function renderEmployees() {
+            const tbody = document.getElementById('employeeTableBody');
+            if(employees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500">No employees registered.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = employees.map(function(emp) {
+                return '<tr class="hover:bg-slate-900/40 transition">' +
+                    '<td class="p-4 pl-6 font-mono text-amber-400 font-semibold">' + emp.id + '<br><span class="text-[10px] text-slate-400">Pass: ' + emp.password + '</span></td>' +
+                    '<td class="p-4 font-medium text-white">' + emp.name + '</td>' +
+                    '<td class="p-4 text-slate-300 font-mono text-xs">' + emp.shiftStart + ' - ' + emp.shiftEnd + '</td>' +
+                    '<td class="p-4 text-cyan-400 font-mono">' + (emp.annualLeaves || 0) + ' Days <button onclick="grantAnnualLeave(\'' + emp.id + '\')" class="ml-2 bg-cyan-500/10 hover:bg-cyan-500/20 px-2 py-0.5 rounded text-[10px] border border-cyan-500/30">+ Grant</button></td>' +
+                    '<td class="p-4 font-mono text-emerald-400">Rs. ' + emp.salary.toLocaleString() + '</td>' +
+                    '<td class="p-4 pr-6 text-right"><button onclick="deleteEmp(\'' + emp.id + '\')" class="text-rose-400 hover:text-rose-300 text-xs font-medium">Delete</button></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function grantAnnualLeave(empId) {
+            const emp = employees.find(function(e) { return e.id === empId; });
+            const count = prompt("Enter number of annual leaves to add for " + emp.name + ":", "5");
+            if(count && !isNaN(count)) {
+                emp.annualLeaves = (Number(emp.annualLeaves) || 0) + Number(count);
+                saveToStorage();
+                renderEmployees();
+                alert('Annual leaves updated successfully!');
+            }
+        }
+
+        function deleteEmp(id) {
+            employees = employees.filter(function(e) { return e.id !== id; });
+            saveToStorage();
+            initApp();
+        }
+
+        function renderDropdowns() {
+            const opts = employees.length ? employees.map(function(e) { return '<option value="' + e.id + '">' + e.name + ' (' + e.shiftStart + ' - ' + e.shiftEnd + ')</option>'; }).join('') : '<option value="">-- Add Employee First --</option>';
+            document.getElementById('attEmpId').innerHTML = opts;
+            document.getElementById('leaveEmpId').innerHTML = opts;
+        }
+
+        function markAttendance(e) {
+            e.preventDefault();
+            const empId = document.getElementById('attEmpId').value;
+            const dateStr = document.getElementById('attDate').value;
+            
+            // Check restriction: only allow current or previous month records
+            if(!isAllowedMonth(dateStr)) {
+                return alert('Restriction Error: You can only log or manage attendance for the current month or immediate previous month.');
+            }
+
+            const timeIn = document.getElementById('timeIn').value;
+            const timeOut = document.getElementById('timeOut').value;
+            const emp = employees.find(function(x) { return x.id === empId; });
+
+            const dayName = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long' });
+            let status = "Present", lateMins = 0, shortLeaveMins = 0, overtimeMins = 0;
+
+            if(dayName !== "Sunday") {
+                const sParts = emp.shiftStart.split(':').map(Number);
+                const eParts = emp.shiftEnd.split(':').map(Number);
+                const inParts = timeIn.split(':').map(Number);
+                const outParts = timeOut.split(':').map(Number);
+
+                const shiftStartTot = sParts[0] * 60 + sParts[1];
+                const inTot = inParts[0] * 60 + inParts[1];
+                const rawLate = inTot - shiftStartTot;
+                if(rawLate > 15) lateMins = rawLate;
+
+                const shiftEndTot = eParts[0] * 60 + eParts[1];
+                const outTot = outParts[0] * 60 + outParts[1];
+                const rawDiff = shiftEndTot - outTot;
+
+                if(outTot > shiftEndTot) {
+                    overtimeMins = outTot - shiftEndTot;
+                } else if(rawDiff > 15) {
+                    shortLeaveMins = rawDiff;
+                }
+            } else {
+                status = "Sunday Off";
+            }
+
+            const record = { id: 'LOG-' + Math.floor(Math.random() * 100000), empId: emp.id, empName: emp.name, date: dateStr, timeIn, timeOut, status, lateMins, shortLeaveMins, overtimeMins };
+            attendanceLogs.unshift(record);
+            saveToStorage();
+            alert('Attendance recorded successfully!');
+            switchTab('reports');
+        }
+
+        function isAllowedMonth(dateStr) {
+            const now = new Date();
+            const currY = now.getFullYear();
+            const currM = now.getMonth();
+            let pY = currY, pM = currM - 1;
+            if(pM < 0) { pM = 11; pY--; }
+
+            const targetMonthStr = dateStr.slice(0, 7);
+            const currMonthStr = currY + '-' + String(currM + 1).padStart(2, '0');
+            const prevMonthStr = pY + '-' + String(pM + 1).padStart(2, '0');
+
+            return targetMonthStr === currMonthStr || targetMonthStr === prevMonthStr;
+        }
+
+        function deleteAttendanceLog(logId) {
+            if(currentUserRole !== 'admin') return;
+            const log = attendanceLogs.find(function(l) { return l.id === logId; });
+            if(confirm('Are you sure you want to delete this attendance log? WhatsApp & Email notification will be sent.')) {
+                attendanceLogs = attendanceLogs.filter(function(l) { return l.id !== logId; });
+                saveToStorage();
+                triggerNotifications('DELETED', 'Employee: ' + log.empName + ', Date: ' + log.date + ', Time In/Out: ' + log.timeIn + ' - ' + log.timeOut);
+                openLedgerModal(activeModalEmpId);
+                renderReports();
+            }
+        }
+
+        function editAttendanceLog(logId) {
+            if(currentUserRole !== 'admin') return;
+            const log = attendanceLogs.find(function(l) { return l.id === logId; });
+            const newIn = prompt("Enter new Time In (HH:MM):", log.timeIn);
+            if(!newIn) return;
+            const newOut = prompt("Enter new Time Out (HH:MM):", log.timeOut);
+            if(!newOut) return;
+
+            const emp = employees.find(function(x) { return x.id === log.empId; });
+            const sParts = emp.shiftStart.split(':').map(Number);
+            const eParts = emp.shiftEnd.split(':').map(Number);
+            const inParts = newIn.split(':').map(Number);
+            const outParts = newOut.split(':').map(Number);
+
+            let lateMins = 0, shortLeaveMins = 0, overtimeMins = 0;
+            const shiftStartTot = sParts[0] * 60 + sParts[1];
+            const inTot = inParts[0] * 60 + inParts[1];
+            const rawLate = inTot - shiftStartTot;
+            if(rawLate > 15) lateMins = rawLate;
+
+            const shiftEndTot = eParts[0] * 60 + eParts[1];
+            const outTot = outParts[0] * 60 + outParts[1];
+            const rawDiff = shiftEndTot - outTot;
+            if(outTot > shiftEndTot) {
+                overtimeMins = outTot - shiftEndTot;
+            } else if(rawDiff > 15) {
+                shortLeaveMins = rawDiff;
+            }
+
+            log.timeIn = newIn;
+            log.timeOut = newOut;
+            log.lateMins = lateMins;
+            log.shortLeaveMins = shortLeaveMins;
+            log.overtimeMins = overtimeMins;
+
+            saveToStorage();
+            triggerNotifications('UPDATED', 'Employee: ' + log.empName + ', Date: ' + log.date + ', New Times: ' + newIn + ' - ' + newOut);
+            alert('Attendance log updated successfully!');
+            openLedgerModal(activeModalEmpId);
+            renderReports();
+        }
+
+        function applyLeave(e) {
+            e.preventDefault();
+            const empId = document.getElementById('leaveEmpId').value;
+            const dateStr = document.getElementById('leaveDate5') ? document.getElementById('leaveDate5').value : document.getElementById('leaveDate').value;
+            const type = document.getElementById('leaveType').value;
+            const emp = employees.find(function(x) { return x.id === empId; });
+
+            if(!isAllowedMonth(dateStr)) {
+                return alert('Restriction Error: Leaves can only be granted for current or previous month.');
+            }
+
+            // Check if it's annual leave and deduct balance
+            if(type === 'Paid Annual Leave') {
+                if((emp.annualLeaves || 0) <= 0) {
+                    return alert('Error: Employee has 0 Annual Leaves remaining! Choose another leave type or grant more leaves.');
+                }
+                emp.annualLeaves -= 1;
+            }
+
+            leaveLogs.unshift({ id: 'LEV-' + Math.floor(Math.random()*100000), empId: emp.id, empName: emp.name, date: dateStr, type });
+            saveToStorage();
+            renderLeaves();
+            renderEmployees();
+            alert('Leave applied & balance updated successfully!');
+        }
+
+        function renderLeaves() {
+            const tbody = document.getElementById('leaveTableBody');
+            if(leaveLogs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-500">No leaves applied.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = leaveLogs.map(function(l) {
+                return '<tr class="hover:bg-slate-900/40 transition">' +
+                    '<td class="p-4 pl-6 font-mono text-xs text-amber-400">' + l.date + '</td>' +
+                    '<td class="p-4 font-medium text-white">' + l.empName + '</td>' +
+                    '<td class="p-4 text-xs"><span class="bg-cyan-500/10 text-cyan-400 px-2.5 py-1 rounded-lg border border-cyan-500/20">' + l.type + '</span></td>' +
+                    '<td class="p-4 pr-6 text-right"><button onclick="deleteLeave(\'' + l.id + '\')" class="text-rose-400 text-xs">Revoke</button></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function deleteLeave(id) {
+            leaveLogs = leaveLogs.filter(function(l) { return l.id !== id; });
+            saveToStorage();
+            renderLeaves();
+        }
+
+        function calculatePayroll(emp, selectedMonth) {
+            const empLogs = attendanceLogs.filter(function(l) { return l.empId === emp.id && l.date.startsWith(selectedMonth); });
+            const empLeaves = leaveLogs.filter(function(l) { return l.empId === emp.id && l.date.startsWith(selectedMonth); });
+            
+            const presentDays = empLogs.filter(function(l) { return l.status === 'Present'; }).length;
+            const totalLateMins = empLogs.reduce(function(acc, curr) { return acc + curr.lateMins; }, 0);
+            const totalShortLeaveMins = empLogs.reduce(function(acc, curr) { return acc + curr.shortLeaveMins; }, 0);
+            const totalOTMins = empLogs.reduce(function(acc, curr) { return acc + curr.overtimeMins; }, 0);
+            const leavesTaken = empLeaves.length;
+
+            const perDayRate = emp.salary / 30;
+            const perMinuteRate = perDayRate / (9 * 60);
+
+            const otAmount = totalOTMins * perMinuteRate * 1.25;
+            const lateDeduction = (totalLateMins + totalShortLeaveMins) * perMinuteRate;
+
+            let netSalary = emp.salary + otAmount - lateDeduction;
+            if(netSalary < 0) netSalary = 0;
+
+            return {
+                presentDays: presentDays,
+                totalLateMins: totalLateMins,
+                totalShortLeaveMins: totalShortLeaveMins,
+                totalOTMins: totalOTMins,
+                leavesTaken: leavesTaken,
+                otAmount: Math.round(otAmount),
+                lateDeduction: Math.round(lateDeduction),
+                netSalary: Math.round(netSalary),
+                empLogs: empLogs,
+                empLeaves: empLeaves
+            };
+        }
+
+        function renderReports() {
+            const container = document.getElementById('employeeLedgerCards');
+            const selectedMonth = document.getElementById('reportMonth').value;
+
+            if(!isAllowedMonth(selectedMonth + '-01')) {
+                container.innerHTML = '<div class="col-span-3 p-8 text-center text-rose-400 font-semibold">Restriction Notice: You can only view reports and salary sheets for the current month or immediate previous month.</div>';
+                return;
+            }
+
+            if(employees.length === 0) {
+                container.innerHTML = '<div class="col-span-3 p-8 text-center text-slate-500">No employee records available.</div>';
+                return;
+            }
+
+            container.innerHTML = employees.map(function(emp) {
+                const payroll = calculatePayroll(emp, selectedMonth);
+
+                return '<div onclick="openLedgerModal(\'' + emp.id + '\')" class="bg-slate-950/60 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-5 cursor-pointer transition space-y-3 group shadow-lg">' +
+                    '<div class="flex justify-between items-start">' +
+                        '<div>' +
+                            '<h4 class="font-bold text-white group-hover:text-amber-400 transition">' + emp.name + '</h4>' +
+                            '<span class="text-xs font-mono text-slate-400">' + emp.id + ' &bull; Shift: ' + emp.shiftStart + '-' + emp.shiftEnd + '</span>' +
+                        '</div>' +
+                        '<span class="bg-amber-500/10 text-amber-400 text-[10px] font-semibold px-2 py-1 rounded-lg border border-amber-500/20">Open Ledger &rarr;</span>' +
+                    '</div>' +
+                    '<div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 text-center">' +
+                        '<div>' +
+                            '<div class="text-[10px] text-slate-400">Present</div>' +
+                            '<div class="text-xs font-mono font-bold text-emerald-400">' + payroll.presentDays + '</div>' +
+                        '</div>' +
+                        '<div>' +
+                            '<div class="text-[10px] text-slate-400">OT Hours</div>' +
+                            '<div class="text-xs font-mono font-bold text-purple-400">' + Math.floor(payroll.totalOTMins/60) + 'h</div>' +
+                        '</div>' +
+                        '<div>' +
+                            '<div class="text-[10px] text-slate-400">Net Salary</div>' +
+                            '<div class="text-xs font-mono font-bold text-white">Rs. ' + payroll.netSalary.toLocaleString() + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function openLedgerModal(empId) {
+            // If logged in as employee, make sure they can only view their own ledger
+            if(currentUserRole === 'employee' && empId !== currentLoggedInEmpId) {
+                alert('Access Denied: You can only view your own records.');
+                return;
+            }
+
+            activeModalEmpId = empId;
+            const emp = employees.find(function(e) { return e.id === empId; });
+            const selectedMonth = document.getElementById('reportMonth').value;
+            const payroll = calculatePayroll(emp, selectedMonth);
+
+            document.getElementById('modalEmpName').innerText = emp.name + ' - Monthly Ledger';
+            document.getElementById('modalEmpMeta').innerText = 'ID: ' + emp.id + ' | Shift: ' + emp.shiftStart + ' to ' + emp.shiftEnd + ' | Annual Leaves Left: ' + (emp.annualLeaves || 0) + ' | Base Salary: Rs. ' + emp.salary.toLocaleString();
+
+            document.getElementById('mPresent').innerText = payroll.presentDays + ' / ' + payroll.leavesTaken;
+            document.getElementById('mLate').innerText = payroll.totalLateMins + 'm';
+            document.getElementById('mShortOT').innerText = payroll.totalShortLeaveMins + 'm / ' + payroll.totalOTMins + 'm';
+            document.getElementById('mSalary').innerText = 'Rs. ' + payroll.netSalary.toLocaleString();
+
+            // Hide edit/delete columns from regular employees
+            if(currentUserRole === 'employee') {
+                document.getElementById('modalActionHeader').style.display = 'none';
+            }
+
+            const tbody = document.getElementById('modalLogRows');
+            if(payroll.empLogs.length === 0 && payroll.empLeaves.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-500">No records found for this month.</td></tr>';
+            } else {
+                let rows = payroll.empLogs.map(function(l) {
+                    let actionTd = currentUserRole === 'admin' ? 
+                        '<td class="p-3 pr-4 text-right space-x-2">' +
+                            '<button onclick="editAttendanceLog(\'' + l.id + '\')" class="text-cyan-400 hover:underline">Edit</button>' +
+                            '<button onclick="deleteAttendanceLog(\'' + l.id + '\')" class="text-rose-400 hover:underline">Del</button>' +
+                        '</td>' : '';
+
+                    return '<tr class="hover:bg-slate-900/40">' +
+                        '<td class="p-3 pl-4 font-mono text-amber-400">' + l.date + '</td>' +
+                        '<td class="p-3"><span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-[10px]">' + l.status + '</span></td>' +
+                        '<td class="p-3 font-mono text-slate-300">' + l.timeIn + ' &rarr; ' + l.timeOut + '</td>' +
+                        '<td class="p-3 font-mono text-rose-400">' + (l.lateMins > 0 ? l.lateMins + 'm' : 'Normal') + '</td>' +
+                        '<td class="p-3 font-mono text-amber-400">' + (l.shortLeaveMins > 0 ? l.shortLeaveMins + 'm' : 'Normal') + '</td>' +
+                        '<td class="p-3 font-mono text-purple-400">' + (l.overtimeMins > 0 ? Math.floor(l.overtimeMins/60)+'h '+l.overtimeMins%60+'m' : 'None') + '</td>' +
+                        actionTd +
+                    '</tr>';
+                }).join('');
+
+                payroll.empLeaves.forEach(function(l) {
+                    let actionTd = currentUserRole === 'admin' ? '<td class="p-3 pr-4 text-right text-slate-500">-</td>' : '';
+                    rows += '<tr class="hover:bg-slate-900/40">' +
+                        '<td class="p-3 pl-4 font-mono text-cyan-400">' + l.date + '</td>' +
+                        '<td class="p-3"><span class="bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded text-[10px]">' + l.type + '</span></td>' +
+                        '<td class="p-3 text-slate-500">-</td>' +
+                        '<td class="p-3 text-slate-500">-</td>' +
+                        '<td class="p-3 text-slate-500">-</td>' +
+                        '<td class="p-3 text-slate-500">-</td>' +
+                        actionTd +
+                    '</tr>';
+                });
+                tbody.innerHTML = rows;
+            }
+
+            document.getElementById('ledgerModal').classList.remove('hidden');
+        }
+
+        function closeLedgerModal() {
+            if(currentUserRole === 'employee') return; // Employees stay locked to their ledger dashboard
+            document.getElementById('ledgerModal').classList.add('hidden');
+        }
+
+        function openSalarySlip() {
+            const emp = employees.find(function(e) { return e.id === activeModalEmpId; });
+            const selectedMonth = document.getElementById('reportMonth').value;
+            const payroll = calculatePayroll(emp, selectedMonth);
+
+            document.getElementById('slipMonthYear').innerText = 'Payroll Statement - ' + selectedMonth;
+            document.getElementById('slipEmpName').innerText = emp.name;
+            document.getElementById('slipEmpId').innerText = emp.id;
+            document.getElementById('slipShift').innerText = emp.shiftStart + ' to ' + emp.shiftEnd;
+            document.getElementById('slipBaseSalary').innerText = 'Rs. ' + emp.salary.toLocaleString();
+
+            document.getElementById('slipPresent').innerText = payroll.presentDays;
+            document.getElementById('slipLeaves').innerText = payroll.leavesTaken;
+            document.getElementById('slipLate').innerText = payroll.totalLateMins + 'm';
+            document.getElementById('slipShortLeave').innerText = payroll.totalShortLeaveMins + 'm';
+
+            document.getElementById('slipOvertimeAmt').innerText = '+ Rs. ' + payroll.otAmount.toLocaleString() + ' (' + Math.floor(payroll.totalOTMins/60) + 'h)';
+            document.getElementById('slipDeductionAmt').innerText = '- Rs. ' + payroll.lateDeduction.toLocaleString() + ' (' + (payroll.totalLateMins + payroll.totalShortLeaveMins) + 'm total)';
+            document.getElementById('slipNetSalary').innerText = 'Rs. ' + payroll.netSalary.toLocaleString();
+
+            document.getElementById('salarySlipModal').classList.remove('hidden');
+        }
+
+        function closeSalarySlip() {
+            document.getElementById('salarySlipModal').classList.add('hidden');
+        }
+
+        function resetAppStorage() {
+            if(confirm('Are you sure you want to reset all data?')) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
